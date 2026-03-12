@@ -1,0 +1,5 @@
+{
+  "name": "Registro de Asistencia",
+  "description": "Aplicación de registro de entrada y salida de personal con captura de foto y base de datos SQLite.",
+  "requestFramePermissions": ["camera"]
+}
