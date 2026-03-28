@@ -1,46 +1,45 @@
 import express from "express";
 import path from "path";
 import os from "os";
-import Database from "better-sqlite3";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const db = new Database("attendance.db");
+const DB_FILE = path.join(process.cwd(), "attendance_db.json");
 
-// Inicialización de la base de datos
-db.exec(`
-  CREATE TABLE IF NOT EXISTS admins (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, 
-    username TEXT UNIQUE, 
-    password TEXT
-  );
-  CREATE TABLE IF NOT EXISTS employees (
-    id TEXT PRIMARY KEY, 
-    full_name TEXT, 
-    id_card TEXT, 
-    position TEXT
-  );
-  CREATE TABLE IF NOT EXISTS logs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, 
-    employee_id TEXT, 
-    employee_name TEXT, 
-    position TEXT, 
-    type TEXT, 
-    photo TEXT, 
-    timestamp TEXT
-  );
-  CREATE TABLE IF NOT EXISTS settings (
-    key TEXT PRIMARY KEY,
-    value TEXT
-  );
-  INSERT OR IGNORE INTO admins (username, password) VALUES ('admin', 'admin123');
-  INSERT OR IGNORE INTO settings (key, value) VALUES ('entry_time', '08:00');
-  INSERT OR IGNORE INTO settings (key, value) VALUES ('exit_time', '17:00');
-`);
+// --- STORAGE SYSTEM (JSON BASED) ---
+interface DBStructure {
+  admins: any[];
+  employees: any[];
+  logs: any[];
+  settings: { [key: string]: string };
+}
+
+const loadDB = (): DBStructure => {
+  if (!fs.existsSync(DB_FILE)) {
+    const initialDB: DBStructure = {
+      admins: [{ id: 1, username: 'admin', password: 'admin123' }],
+      employees: [],
+      logs: [],
+      settings: {
+        entry_time: '08:00',
+        exit_time: '17:00'
+      }
+    };
+    fs.writeFileSync(DB_FILE, JSON.stringify(initialDB, null, 2));
+    return initialDB;
+  }
+  return JSON.parse(fs.readFileSync(DB_FILE, 'utf-8'));
+};
+
+const saveDB = (data: DBStructure) => {
+  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
+};
 
 async function startServer() {
   const app = express();
+  let db = loadDB();
   
   // Aumentar el límite para recibir fotos en base64
   app.use(express.json({ limit: '20mb' }));
@@ -63,7 +62,7 @@ async function startServer() {
   // Login de Administrador
   app.post("/api/admin/login", (req, res) => {
     const { username, password } = req.body;
-    const admin = db.prepare("SELECT * FROM admins WHERE username = ? AND password = ?").get(username, password);
+    const admin = db.admins.find(a => a.username === username && a.password === password);
     if (admin) {
       res.json({ success: true, admin: { id: admin.id, username: admin.username } });
     } else {
@@ -73,71 +72,58 @@ async function startServer() {
 
   // Obtener todos los empleados
   app.get("/api/employees", (req, res) => {
-    res.json(db.prepare("SELECT * FROM employees ORDER BY full_name ASC").all());
+    res.json(db.employees.sort((a, b) => a.full_name.localeCompare(b.full_name)));
   });
   
   // Agregar empleado
   app.post("/api/employees", (req, res) => {
     const { id, full_name, id_card, position } = req.body;
-    try {
-      db.prepare("INSERT INTO employees (id, full_name, id_card, position) VALUES (?, ?, ?, ?)").run(id, full_name, id_card, position);
-      res.json({ success: true });
-    } catch (e) {
-      res.status(400).json({ error: "El ID ya existe o datos inválidos" });
+    if (db.employees.find(e => e.id === id)) {
+      return res.status(400).json({ error: "El ID ya existe" });
     }
+    db.employees.push({ id, full_name, id_card, position });
+    saveDB(db);
+    res.json({ success: true });
   });
 
   // Actualizar empleado
   app.put("/api/employees/:id", (req, res) => {
     const { full_name, id_card, position } = req.body;
-    try {
-      db.prepare("UPDATE employees SET full_name = ?, id_card = ?, position = ? WHERE id = ?").run(full_name, id_card, position, req.params.id);
+    const index = db.employees.findIndex(e => e.id === req.params.id);
+    if (index !== -1) {
+      db.employees[index] = { ...db.employees[index], full_name, id_card, position };
+      saveDB(db);
       res.json({ success: true });
-    } catch (e) {
-      res.status(500).json({ error: "Error al actualizar" });
+    } else {
+      res.status(404).json({ error: "No encontrado" });
     }
   });
 
   // Eliminar empleado
   app.delete("/api/employees/:id", (req, res) => {
-    try {
-      db.prepare("DELETE FROM employees WHERE id = ?").run(req.params.id);
-      res.json({ success: true });
-    } catch (e) {
-      res.status(500).json({ error: "Error al eliminar" });
-    }
+    db.employees = db.employees.filter(e => e.id !== req.params.id);
+    saveDB(db);
+    res.json({ success: true });
   });
 
   // Obtener configuraciones
   app.get("/api/settings", (req, res) => {
-    const settings = db.prepare("SELECT * FROM settings").all();
-    const config = settings.reduce((acc: any, curr: any) => {
-      acc[curr.key] = curr.value;
-      return acc;
-    }, {});
-    res.json(config);
+    res.json(db.settings);
   });
 
   // Actualizar configuraciones
   app.put("/api/settings", (req, res) => {
     const { entry_time, exit_time } = req.body;
-    try {
-      db.prepare("UPDATE settings SET value = ? WHERE key = 'entry_time'").run(entry_time);
-      db.prepare("UPDATE settings SET value = ? WHERE key = 'exit_time'").run(exit_time);
-      res.json({ success: true });
-    } catch (e) {
-      res.status(500).json({ error: "Error al actualizar configuración" });
-    }
+    db.settings.entry_time = entry_time;
+    db.settings.exit_time = exit_time;
+    saveDB(db);
+    res.json({ success: true });
   });
 
   // Exportar para Power BI (CSV)
   app.get("/api/export", (req, res) => {
-    const logs = db.prepare("SELECT * FROM logs ORDER BY timestamp DESC").all();
-    const settings = db.prepare("SELECT * FROM settings").all();
-    const config = settings.reduce((acc: any, curr: any) => {
-      acc[curr.key] = curr.value;
-      return acc;
-    }, {});
+    const logs = [...db.logs].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    const config = db.settings;
 
     const csvRows = ["ID,Empleado,Cargo,Tipo,Fecha,Hora,Estado"];
     
@@ -161,12 +147,8 @@ async function startServer() {
 
   // Estadísticas de los últimos 5 días
   app.get("/api/stats/summary", (req, res) => {
-    const logs = db.prepare("SELECT * FROM logs ORDER BY timestamp DESC").all();
-    const settings = db.prepare("SELECT * FROM settings").all();
-    const config = settings.reduce((acc: any, curr: any) => {
-      acc[curr.key] = curr.value;
-      return acc;
-    }, {});
+    const logs = db.logs;
+    const config = db.settings;
 
     const now = new Date();
     const todayStr = req.query.date as string || now.toISOString().split('T')[0];
@@ -201,18 +183,14 @@ async function startServer() {
       late_last_5_days: lateEmployees.size,
       on_time_today: onTimeToday.size,
       early_exit_today: earlyExitToday.size,
-      total_employees: db.prepare("SELECT COUNT(*) as count FROM employees").get().count
+      total_employees: db.employees.length
     });
   });
 
   // Obtener registros de asistencia con estado
   app.get("/api/logs", (req, res) => {
-    const logs = db.prepare("SELECT * FROM logs ORDER BY timestamp DESC").all();
-    const settings = db.prepare("SELECT * FROM settings").all();
-    const config = settings.reduce((acc: any, curr: any) => {
-      acc[curr.key] = curr.value;
-      return acc;
-    }, {});
+    const logs = [...db.logs].sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+    const config = db.settings;
 
     const logsWithStatus = logs.map((log: any) => {
       const { time } = normalizeDate(log.timestamp);
@@ -232,7 +210,7 @@ async function startServer() {
 
   // Verificar si un empleado existe (para el check-in)
   app.get("/api/employees/check/:id", (req, res) => {
-    const emp = db.prepare("SELECT * FROM employees WHERE id = ?").get(req.params.id);
+    const emp = db.employees.find(e => e.id === req.params.id);
     if (emp) {
       res.json(emp);
     } else {
@@ -245,26 +223,33 @@ async function startServer() {
     const { employee_id, type, photo, timestamp } = req.body;
     const { date } = normalizeDate(timestamp);
     
-    const emp = db.prepare("SELECT * FROM employees WHERE id = ?").get(employee_id);
+    const emp = db.employees.find(e => e.id === employee_id);
     if (!emp) {
       return res.status(404).json({ error: "Empleado no encontrado" });
     }
 
     // Verificar si ya existe un registro del mismo tipo para el mismo día
-    const existing = db.prepare(`
-      SELECT * FROM logs 
-      WHERE employee_id = ? AND type = ? AND timestamp LIKE ?
-    `).get(employee_id, type, `${date}%`);
+    const existing = db.logs.find(l => 
+      l.employee_id === employee_id && 
+      l.type === type && 
+      normalizeDate(l.timestamp).date === date
+    );
 
     if (existing) {
       return res.status(400).json({ error: `Ya has registrado tu ${type} hoy.` });
     }
 
     try {
-      db.prepare(`
-        INSERT INTO logs (employee_id, employee_name, position, type, photo, timestamp) 
-        VALUES (?, ?, ?, ?, ?, ?)
-      `).run(employee_id, emp.full_name, emp.position, type, photo, timestamp);
+      db.logs.push({
+        id: Date.now(),
+        employee_id,
+        employee_name: emp.full_name,
+        position: emp.position,
+        type,
+        photo,
+        timestamp
+      });
+      saveDB(db);
       res.json({ success: true });
     } catch (e) {
       res.status(500).json({ error: "Error al guardar el registro" });
