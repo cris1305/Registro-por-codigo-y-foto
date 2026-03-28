@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Users, History, LogOut, LogIn, Plus, Trash2, Edit2, ShieldCheck, Clock, IdCard, CheckCircle2, XCircle, ChevronRight, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-type View = 'user-check' | 'admin-login' | 'admin-dashboard' | 'admin-logs';
+type View = 'user-check' | 'admin-login' | 'admin-dashboard' | 'admin-logs' | 'admin-violations';
 
 interface Employee {
   id: string;
@@ -32,10 +32,14 @@ export default function App() {
   
   // Admin States
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [logs, setLogs] = useState<AttendanceLog[]>([]);
+  const [logs, setLogs] = useState<(AttendanceLog & { status: string })[]>([]);
+  const [settings, setSettings] = useState({ entry_time: '08:00', exit_time: '17:00' });
+  const [stats, setStats] = useState({ late_last_5_days: 0, on_time_today: 0, early_exit_today: 0, total_employees: 0 });
+  const [searchTerm, setSearchTerm] = useState('');
   const [newEmployee, setNewEmployee] = useState({ id: '', full_name: '', id_card: '', position: '' });
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [isEditingSettings, setIsEditingSettings] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -44,6 +48,8 @@ export default function App() {
     if (admin) {
       fetchEmployees();
       fetchLogs();
+      fetchSettings();
+      fetchStats();
     }
   }, [admin]);
 
@@ -56,6 +62,43 @@ export default function App() {
     const res = await fetch('/api/logs');
     setLogs(await res.json());
   };
+
+  const fetchSettings = async () => {
+    const res = await fetch('/api/settings');
+    setSettings(await res.json());
+  };
+
+  const fetchStats = async () => {
+    const now = new Date();
+    const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+    const res = await fetch(`/api/stats/summary?date=${today}`);
+    setStats(await res.json());
+  };
+
+  const handleUpdateSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = await fetch('/api/settings', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    });
+    if (res.ok) {
+      showStatus('Configuración actualizada', 'success');
+      setIsEditingSettings(false);
+      fetchStats();
+      fetchLogs();
+    }
+  };
+
+  const handleExport = () => {
+    window.open('/api/export', '_blank');
+  };
+
+  const filteredLogs = logs.filter(log => 
+    log.employee_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    log.employee_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    log.status.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   const showStatus = (text: string, type: 'success' | 'error') => {
     setMessage({ text, type });
@@ -79,6 +122,13 @@ export default function App() {
     }
   };
 
+  // Iniciar cámara cuando se identifica al empleado
+  useEffect(() => {
+    if (currentEmployee && videoRef.current) {
+      startCamera();
+    }
+  }, [currentEmployee]);
+
   const handleUserCheck = async (e: React.FormEvent) => {
     e.preventDefault();
     const res = await fetch(`/api/employees/check/${employeeId}`);
@@ -86,7 +136,6 @@ export default function App() {
       const data = await res.json();
       setCurrentEmployee(data);
       setCameraActive(true);
-      setTimeout(startCamera, 100);
     } else {
       showStatus('Persona no identificada', 'error');
     }
@@ -94,28 +143,42 @@ export default function App() {
 
   const startCamera = async () => {
     try {
-      // Detener cualquier stream previo si existe
       if (videoRef.current && videoRef.current.srcObject) {
         const stream = videoRef.current.srcObject as MediaStream;
         stream.getTracks().forEach(track => track.stop());
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showStatus('Tu navegador no soporta acceso a la cámara o no estás en un sitio seguro.', 'error');
+        return;
+      }
+
+      const constraints = { 
         video: { 
           facingMode: { ideal: "user" },
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          width: { ideal: 640 },
+          height: { ideal: 480 }
         } 
-      });
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        // Forzar reproducción en iOS
         videoRef.current.setAttribute('playsinline', 'true');
         videoRef.current.play().catch(e => console.error("Error al reproducir video:", e));
       }
     } catch (err) {
       console.error("Error de cámara:", err);
-      showStatus('Error al acceder a la cámara. Verifica los permisos.', 'error');
+      // Reintento con configuración básica si falla la ideal
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play();
+        }
+      } catch (fallbackErr) {
+        showStatus('Error al acceder a la cámara. Verifica los permisos.', 'error');
+      }
     }
   };
 
@@ -139,15 +202,13 @@ export default function App() {
     
     // Capturar fecha y hora local del dispositivo
     const now = new Date();
-    const timestamp = now.toLocaleString('es-MX', { 
-      year: 'numeric', 
-      month: '2-digit', 
-      day: '2-digit', 
-      hour: '2-digit', 
-      minute: '2-digit', 
-      second: '2-digit',
-      hour12: false 
-    }).replace(/\//g, '-');
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const timestamp = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 
     showStatus('Procesando...', 'success');
 
@@ -168,7 +229,8 @@ export default function App() {
       setCurrentEmployee(null);
       setEmployeeId('');
     } else {
-      showStatus('Error al registrar asistencia', 'error');
+      const errorData = await res.json();
+      showStatus(errorData.error || 'Error al registrar asistencia', 'error');
     }
   };
 
@@ -243,6 +305,12 @@ export default function App() {
                 className={`p-2 rounded-lg transition-colors ${view === 'admin-logs' ? 'bg-orange-100 text-orange-600' : 'text-stone-400 hover:text-stone-600'}`}
               >
                 <History size={20} />
+              </button>
+              <button 
+                onClick={() => setView('admin-violations')}
+                className={`p-2 rounded-lg transition-colors ${view === 'admin-violations' ? 'bg-red-100 text-red-600' : 'text-stone-400 hover:text-red-600'}`}
+              >
+                <XCircle size={20} />
               </button>
               <button onClick={() => { setAdmin(null); setView('user-check'); }} className="text-stone-400 hover:text-red-600 p-2">
                 <LogOut size={20} />
@@ -321,6 +389,7 @@ export default function App() {
                       ref={videoRef} 
                       autoPlay 
                       playsInline 
+                      muted
                       className="w-full h-full object-cover"
                     />
                     <div className="absolute inset-0 border-[12px] border-white/10 pointer-events-none"></div>
@@ -402,8 +471,47 @@ export default function App() {
             <motion.div key="admin-dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
               <div className="flex justify-between items-end">
                 <div>
-                  <h2 className="text-3xl font-black tracking-tight">Empleados</h2>
-                  <p className="text-stone-500 font-medium">Gestiona el personal de la central</p>
+                  <h2 className="text-3xl font-black tracking-tight">Panel de Control</h2>
+                  <p className="text-stone-500 font-medium">Gestiona el personal y configura horarios</p>
+                </div>
+                <button 
+                  onClick={() => setIsEditingSettings(true)}
+                  className="bg-white border border-stone-200 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-stone-50 transition-colors"
+                >
+                  <Clock size={18} className="text-orange-600" />
+                  Configurar Horarios
+                </button>
+              </div>
+
+              {/* Estadísticas */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-stone-100">
+                  <p className="text-xs font-black text-stone-400 uppercase tracking-widest mb-1">Total Empleados</p>
+                  <p className="text-3xl font-black">{stats.total_employees}</p>
+                </div>
+                <div className="bg-white p-6 rounded-3xl shadow-sm border border-stone-100">
+                  <p className="text-xs font-black text-stone-400 uppercase tracking-widest mb-1">A tiempo hoy</p>
+                  <p className="text-3xl font-black text-green-600">{stats.on_time_today}</p>
+                </div>
+                <div 
+                  className="bg-white p-6 rounded-3xl shadow-sm border border-red-100 cursor-pointer hover:bg-red-50 transition-colors"
+                  onClick={() => setView('admin-violations')}
+                >
+                  <p className="text-xs font-black text-red-400 uppercase tracking-widest mb-1">Tarde (5 días)</p>
+                  <div className="flex justify-between items-end">
+                    <p className="text-3xl font-black text-red-600">{stats.late_last_5_days}</p>
+                    <ChevronRight size={20} className="text-red-300 mb-1" />
+                  </div>
+                </div>
+                <div 
+                  className="bg-white p-6 rounded-3xl shadow-sm border border-orange-100 cursor-pointer hover:bg-orange-50 transition-colors"
+                  onClick={() => setView('admin-violations')}
+                >
+                  <p className="text-xs font-black text-orange-400 uppercase tracking-widest mb-1">Salida Temprana hoy</p>
+                  <div className="flex justify-between items-end">
+                    <p className="text-3xl font-black text-orange-600">{stats.early_exit_today}</p>
+                    <ChevronRight size={20} className="text-orange-300 mb-1" />
+                  </div>
                 </div>
               </div>
 
@@ -481,11 +589,109 @@ export default function App() {
             </motion.div>
           )}
 
+          {view === 'admin-violations' && (
+            <motion.div key="admin-violations" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+                <div>
+                  <h2 className="text-3xl font-black tracking-tight text-red-600">Incidencias</h2>
+                  <p className="text-stone-500 font-medium">Personal que no ha cumplido con el horario establecido</p>
+                </div>
+                <button 
+                  onClick={() => setView('admin-logs')}
+                  className="bg-stone-100 text-stone-600 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-stone-200 transition-colors"
+                >
+                  Ver Todo el Historial
+                </button>
+              </div>
+
+              <div className="bg-white rounded-[2rem] shadow-xl border border-red-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-red-50/50 border-b border-red-100">
+                        <th className="p-5 text-xs font-black uppercase tracking-widest text-red-400">Empleado</th>
+                        <th className="p-5 text-xs font-black uppercase tracking-widest text-red-400">Tipo</th>
+                        <th className="p-5 text-xs font-black uppercase tracking-widest text-red-400">Estado</th>
+                        <th className="p-5 text-xs font-black uppercase tracking-widest text-red-400">Fecha y Hora</th>
+                        <th className="p-5 text-xs font-black uppercase tracking-widest text-red-400">Evidencia</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-50">
+                      {logs.filter(l => l.status !== 'A tiempo').map(log => (
+                        <tr key={log.id} className="hover:bg-red-50/30 transition-colors bg-red-50/10">
+                          <td className="p-5">
+                            <div className="font-bold text-stone-900">{log.employee_name}</div>
+                            <div className="text-xs text-stone-400 font-medium uppercase tracking-tighter">ID: {log.employee_id} • {log.position}</div>
+                          </td>
+                          <td className="p-5">
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              log.type === 'Entrada' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+                            }`}>
+                              {log.type}
+                            </span>
+                          </td>
+                          <td className="p-5">
+                            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-600 text-white shadow-lg shadow-red-100">
+                              {log.status}
+                            </span>
+                          </td>
+                          <td className="p-5 text-sm font-medium text-stone-500">
+                            {log.timestamp}
+                          </td>
+                          <td className="p-5">
+                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-stone-100 border border-stone-200">
+                              <img 
+                                src={log.photo} 
+                                alt="Captura" 
+                                className="w-full h-full object-cover cursor-zoom-in hover:scale-110 transition-transform"
+                                onClick={() => window.open(log.photo)}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {logs.filter(l => l.status !== 'A tiempo').length === 0 && (
+                        <tr>
+                          <td colSpan={5} className="p-20 text-center">
+                            <div className="bg-green-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600">
+                              <CheckCircle2 size={32} />
+                            </div>
+                            <p className="font-bold text-stone-400">No hay incidencias registradas</p>
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </motion.div>
+          )}
           {view === 'admin-logs' && (
             <motion.div key="admin-logs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-              <div>
-                <h2 className="text-3xl font-black tracking-tight">Historial</h2>
-                <p className="text-stone-500 font-medium">Registros de entrada y salida en tiempo real</p>
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+                <div>
+                  <h2 className="text-3xl font-black tracking-tight">Historial</h2>
+                  <p className="text-stone-500 font-medium">Registros de entrada y salida con detección de puntualidad</p>
+                </div>
+                <div className="flex gap-2 w-full md:w-auto">
+                  <div className="relative flex-1 md:w-64">
+                    <input 
+                      type="text" 
+                      placeholder="Buscar empleado o estado..." 
+                      className="w-full pl-10 pr-4 py-2 rounded-xl bg-white border border-stone-200 text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                      value={searchTerm}
+                      onChange={e => setSearchTerm(e.target.value)}
+                    />
+                    <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
+                  </div>
+                  <button 
+                    onClick={handleExport}
+                    className="bg-stone-900 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-black transition-colors"
+                  >
+                    <History size={18} />
+                    Exportar Power BI
+                  </button>
+                </div>
               </div>
 
               <div className="bg-white rounded-[2rem] shadow-xl border border-stone-100 overflow-hidden">
@@ -495,16 +701,17 @@ export default function App() {
                       <tr className="bg-stone-50 border-b border-stone-100">
                         <th className="p-5 text-xs font-black uppercase tracking-widest text-stone-400">Empleado</th>
                         <th className="p-5 text-xs font-black uppercase tracking-widest text-stone-400">Tipo</th>
+                        <th className="p-5 text-xs font-black uppercase tracking-widest text-stone-400">Estado</th>
                         <th className="p-5 text-xs font-black uppercase tracking-widest text-stone-400">Fecha y Hora</th>
                         <th className="p-5 text-xs font-black uppercase tracking-widest text-stone-400">Evidencia</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-50">
-                      {logs.map(log => (
-                        <tr key={log.id} className="hover:bg-stone-50/50 transition-colors">
+                      {filteredLogs.map(log => (
+                        <tr key={log.id} className={`hover:bg-stone-50/50 transition-colors ${log.status !== 'A tiempo' ? 'bg-red-50/30' : ''}`}>
                           <td className="p-5">
                             <div className="font-bold text-stone-900">{log.employee_name}</div>
-                            <div className="text-xs text-stone-400 font-medium uppercase tracking-tighter">{log.position}</div>
+                            <div className="text-xs text-stone-400 font-medium uppercase tracking-tighter">ID: {log.employee_id} • {log.position}</div>
                           </td>
                           <td className="p-5">
                             <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
@@ -513,8 +720,15 @@ export default function App() {
                               {log.type}
                             </span>
                           </td>
+                          <td className="p-5">
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              log.status === 'A tiempo' ? 'bg-green-50 text-green-600' : 'bg-red-600 text-white shadow-lg shadow-red-100'
+                            }`}>
+                              {log.status}
+                            </span>
+                          </td>
                           <td className="p-5 text-sm font-medium text-stone-500">
-                            {new Date(log.timestamp).toLocaleString()}
+                            {log.timestamp}
                           </td>
                           <td className="p-5">
                             <div className="w-12 h-12 rounded-lg overflow-hidden bg-stone-100 border border-stone-200">
@@ -603,6 +817,48 @@ export default function App() {
                 <button onClick={() => setShowDeleteConfirm(null)} className="flex-1 p-4 rounded-xl font-bold text-stone-400 hover:bg-stone-50 transition-colors">Cancelar</button>
                 <button onClick={() => deleteEmployee(showDeleteConfirm)} className="flex-1 bg-red-600 text-white p-4 rounded-xl font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-200">Eliminar</button>
               </div>
+            </motion.div>
+          </div>
+        )}
+
+        {isEditingSettings && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setIsEditingSettings(false)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl"
+            >
+              <h3 className="text-2xl font-black mb-6">Configurar Horarios</h3>
+              <form onSubmit={handleUpdateSettings} className="space-y-6">
+                <div>
+                  <label className="block text-xs font-black text-stone-400 uppercase tracking-widest mb-2">Hora de Entrada (HH:MM)</label>
+                  <input 
+                    type="time" 
+                    value={settings.entry_time} 
+                    onChange={e => setSettings({...settings, entry_time: e.target.value})}
+                    className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold text-xl"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-black text-stone-400 uppercase tracking-widest mb-2">Hora de Salida (HH:MM)</label>
+                  <input 
+                    type="time" 
+                    value={settings.exit_time} 
+                    onChange={e => setSettings({...settings, exit_time: e.target.value})}
+                    className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold text-xl"
+                  />
+                </div>
+                <div className="flex gap-3 pt-4">
+                  <button type="button" onClick={() => setIsEditingSettings(false)} className="flex-1 p-4 rounded-xl font-bold text-stone-400 hover:bg-stone-50 transition-colors">Cancelar</button>
+                  <button type="submit" className="flex-1 bg-orange-600 text-white p-4 rounded-xl font-bold hover:bg-orange-700 transition-colors shadow-lg shadow-orange-200">Guardar</button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}
