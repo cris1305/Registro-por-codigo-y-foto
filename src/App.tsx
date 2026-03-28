@@ -1,31 +1,8 @@
-/**
- * @license
- * SPDX-License-Identifier: Apache-2.0
- */
-
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-  Camera, 
-  User, 
-  Users, 
-  History, 
-  LogOut, 
-  LogIn, 
-  Plus, 
-  Trash2, 
-  Edit2, 
-  ChevronRight,
-  ShieldCheck,
-  Clock,
-  Briefcase,
-  IdCard,
-  CheckCircle2,
-  XCircle,
-  ArrowLeft
-} from 'lucide-react';
+import { Camera, Users, History, LogOut, LogIn, Plus, Trash2, Edit2, ShieldCheck, Clock, IdCard, CheckCircle2, XCircle, ChevronRight, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-type View = 'user-check' | 'admin-login' | 'admin-dashboard' | 'admin-logs' | 'admin-users';
+type View = 'user-check' | 'admin-login' | 'admin-dashboard' | 'admin-logs';
 
 interface Employee {
   id: string;
@@ -34,12 +11,12 @@ interface Employee {
   position: string;
 }
 
-interface Log {
+interface AttendanceLog {
   id: number;
   employee_id: string;
   employee_name: string;
   position: string;
-  type: string;
+  type: 'Entrada' | 'Salida';
   photo: string;
   timestamp: string;
 }
@@ -47,12 +24,18 @@ interface Log {
 export default function App() {
   const [view, setView] = useState<View>('user-check');
   const [admin, setAdmin] = useState<any>(null);
+  const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [employeeId, setEmployeeId] = useState('');
   const [currentEmployee, setCurrentEmployee] = useState<Employee | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' } | null>(null);
+  
+  // Admin States
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [logs, setLogs] = useState<Log[]>([]);
+  const [logs, setLogs] = useState<AttendanceLog[]>([]);
+  const [newEmployee, setNewEmployee] = useState({ id: '', full_name: '', id_card: '', position: '' });
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -66,94 +49,12 @@ export default function App() {
 
   const fetchEmployees = async () => {
     const res = await fetch('/api/employees');
-    const data = await res.json();
-    setEmployees(data);
+    setEmployees(await res.json());
   };
 
   const fetchLogs = async () => {
     const res = await fetch('/api/logs');
-    const data = await res.json();
-    setLogs(data);
-  };
-
-  const handleUserCheck = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const res = await fetch(`/api/employees/check/${employeeId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCurrentEmployee(data);
-        setCameraActive(true);
-        startCamera();
-      } else {
-        showStatus('Persona no identificada', 'error');
-      }
-    } catch (err) {
-      showStatus('Error al conectar con el servidor', 'error');
-    }
-  };
-
-  const startCamera = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (err) {
-      showStatus('No se pudo acceder a la cámara', 'error');
-    }
-  };
-
-  const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
-      tracks.forEach(track => track.stop());
-    }
-    setCameraActive(false);
-  };
-
-  const capturePhoto = () => {
-    if (videoRef.current && canvasRef.current) {
-      const context = canvasRef.current.getContext('2d');
-      if (context) {
-        canvasRef.current.width = videoRef.current.videoWidth;
-        canvasRef.current.height = videoRef.current.videoHeight;
-        context.drawImage(videoRef.current, 0, 0);
-        return canvasRef.current.toDataURL('image/jpeg');
-      }
-    }
-    return '';
-  };
-
-  const handleAttendance = async (type: 'Entrada' | 'Salida') => {
-    const photo = capturePhoto();
-    showStatus('Foto capturada con éxito', 'success');
-    
-    // Wait a bit so the user can see the "Photo captured" message
-    setTimeout(async () => {
-      try {
-        const res = await fetch('/api/logs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            employee_id: currentEmployee?.id,
-            type,
-            photo
-          })
-        });
-
-        if (res.ok) {
-          showStatus(type === 'Entrada' ? '¡Bienvenido!' : '¡Buen viaje!', 'success');
-          setTimeout(() => {
-            stopCamera();
-            setCurrentEmployee(null);
-            setEmployeeId('');
-          }, 2000);
-        }
-      } catch (err) {
-        showStatus('Error al guardar el registro', 'error');
-      }
-    }, 1500);
+    setLogs(await res.json());
   };
 
   const showStatus = (text: string, type: 'success' | 'error') => {
@@ -163,365 +64,562 @@ export default function App() {
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    const username = formData.get('username');
-    const password = formData.get('password');
-
     const res = await fetch('/api/admin/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify(loginData)
     });
-
     if (res.ok) {
       const data = await res.json();
       setAdmin(data.admin);
       setView('admin-dashboard');
+      showStatus('Sesión iniciada', 'success');
     } else {
       showStatus('Credenciales inválidas', 'error');
     }
   };
 
-  const handleAddEmployee = async (e: React.FormEvent) => {
+  const handleUserCheck = async (e: React.FormEvent) => {
     e.preventDefault();
-    const formData = new FormData(e.target as HTMLFormElement);
-    const employee = Object.fromEntries(formData);
+    const res = await fetch(`/api/employees/check/${employeeId}`);
+    if (res.ok) {
+      const data = await res.json();
+      setCurrentEmployee(data);
+      setCameraActive(true);
+      setTimeout(startCamera, 100);
+    } else {
+      showStatus('Persona no identificada', 'error');
+    }
+  };
 
-    const res = await fetch('/api/employees', {
+  const startCamera = async () => {
+    try {
+      // Detener cualquier stream previo si existe
+      if (videoRef.current && videoRef.current.srcObject) {
+        const stream = videoRef.current.srcObject as MediaStream;
+        stream.getTracks().forEach(track => track.stop());
+      }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: { ideal: "user" },
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        // Forzar reproducción en iOS
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.play().catch(e => console.error("Error al reproducir video:", e));
+      }
+    } catch (err) {
+      console.error("Error de cámara:", err);
+      showStatus('Error al acceder a la cámara. Verifica los permisos.', 'error');
+    }
+  };
+
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+    }
+    setCameraActive(false);
+  };
+
+  const handleAttendance = async (type: 'Entrada' | 'Salida') => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const context = canvasRef.current.getContext('2d');
+    canvasRef.current.width = videoRef.current.videoWidth;
+    canvasRef.current.height = videoRef.current.videoHeight;
+    context?.drawImage(videoRef.current, 0, 0);
+    
+    const photo = canvasRef.current.toDataURL('image/jpeg', 0.6); // Reducir un poco la calidad para envíos más rápidos
+    
+    // Capturar fecha y hora local del dispositivo
+    const now = new Date();
+    const timestamp = now.toLocaleString('es-MX', { 
+      year: 'numeric', 
+      month: '2-digit', 
+      day: '2-digit', 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      hour12: false 
+    }).replace(/\//g, '-');
+
+    showStatus('Procesando...', 'success');
+
+    const res = await fetch('/api/logs', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(employee)
+      body: JSON.stringify({
+        employee_id: currentEmployee?.id,
+        type,
+        photo,
+        timestamp
+      })
     });
 
     if (res.ok) {
-      fetchEmployees();
-      (e.target as HTMLFormElement).reset();
-      showStatus('Empleado registrado', 'success');
+      showStatus(`¡${type} registrada con éxito!`, 'success');
+      stopCamera();
+      setCurrentEmployee(null);
+      setEmployeeId('');
     } else {
-      showStatus('Error al registrar empleado', 'error');
+      showStatus('Error al registrar asistencia', 'error');
+    }
+  };
+
+  const handleAddEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = await fetch('/api/employees', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newEmployee)
+    });
+    if (res.ok) {
+      showStatus('Empleado agregado', 'success');
+      setNewEmployee({ id: '', full_name: '', id_card: '', position: '' });
+      fetchEmployees();
+    } else {
+      showStatus('Error: El ID ya existe', 'error');
+    }
+  };
+
+  const handleUpdateEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingEmployee) return;
+    const res = await fetch(`/api/employees/${editingEmployee.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(editingEmployee)
+    });
+    if (res.ok) {
+      showStatus('Empleado actualizado', 'success');
+      setEditingEmployee(null);
+      fetchEmployees();
     }
   };
 
   const deleteEmployee = async (id: string) => {
-    if (confirm('¿Está seguro de eliminar este usuario?')) {
-      await fetch(`/api/employees/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/employees/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      showStatus('Empleado eliminado', 'success');
+      setShowDeleteConfirm(null);
       fetchEmployees();
     }
   };
 
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-900 font-sans selection:bg-emerald-100">
-      {/* Navigation */}
-      <nav className="bg-white border-b border-stone-200 px-6 py-4 flex justify-between items-center sticky top-0 z-50">
-        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('user-check')}>
-          <div className="bg-orange-600 p-2 rounded-lg text-white">
-            <ShieldCheck size={24} />
+    <div className="min-h-screen bg-stone-50 text-stone-900 font-sans selection:bg-orange-100 selection:text-orange-900">
+      {/* Navbar */}
+      <nav className="bg-white/80 backdrop-blur-md border-b border-stone-200 p-4 flex justify-between items-center sticky top-0 z-50">
+        <div 
+          className="flex items-center gap-3 cursor-pointer group" 
+          onClick={() => { stopCamera(); setView('user-check'); setCurrentEmployee(null); setEmployeeId(''); }}
+        >
+          <div className="bg-orange-600 p-2 rounded-xl group-hover:rotate-12 transition-transform">
+            <ShieldCheck className="text-white" size={24} />
           </div>
-          <h1 className="text-xl font-bold tracking-tight">Tortillería La Central</h1>
+          <div>
+            <h1 className="text-xl font-black tracking-tighter uppercase">La Central</h1>
+            <p className="text-[10px] font-bold text-orange-600 uppercase tracking-[0.2em] -mt-1">Sistema de Asistencia</p>
+          </div>
         </div>
         
-        <div className="flex gap-4">
+        <div className="flex items-center gap-2">
           {admin ? (
             <div className="flex items-center gap-4">
-              <span className="text-sm font-medium text-stone-500">Admin: {admin.username}</span>
               <button 
-                onClick={() => { setAdmin(null); setView('user-check'); }}
-                className="flex items-center gap-2 text-sm font-semibold text-stone-600 hover:text-red-600 transition-colors"
+                onClick={() => setView('admin-dashboard')}
+                className={`p-2 rounded-lg transition-colors ${view === 'admin-dashboard' ? 'bg-orange-100 text-orange-600' : 'text-stone-400 hover:text-stone-600'}`}
               >
-                <LogOut size={18} /> Salir
+                <Users size={20} />
+              </button>
+              <button 
+                onClick={() => setView('admin-logs')}
+                className={`p-2 rounded-lg transition-colors ${view === 'admin-logs' ? 'bg-orange-100 text-orange-600' : 'text-stone-400 hover:text-stone-600'}`}
+              >
+                <History size={20} />
+              </button>
+              <button onClick={() => { setAdmin(null); setView('user-check'); }} className="text-stone-400 hover:text-red-600 p-2">
+                <LogOut size={20} />
               </button>
             </div>
           ) : (
             <button 
-              onClick={() => setView(view === 'admin-login' ? 'user-check' : 'admin-login')}
-              className="flex items-center justify-center w-8 h-8 rounded-full text-stone-300 hover:text-orange-600 hover:bg-orange-50 transition-all"
-              title="Admin"
+              onClick={() => setView('admin-login')} 
+              className="text-stone-300 hover:text-orange-600 transition-colors"
             >
-              <ShieldCheck size={16} />
+              <ShieldCheck size={20} />
             </button>
           )}
         </div>
       </nav>
 
-      <main className="max-w-6xl mx-auto p-6">
+      <main className="p-6 max-w-5xl mx-auto">
         <AnimatePresence mode="wait">
-          {/* User Check-in View */}
           {view === 'user-check' && (
             <motion.div 
               key="user-check"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="max-w-md mx-auto mt-12"
+              className="max-w-md mx-auto"
             >
               {!cameraActive ? (
-                <div className="bg-white rounded-3xl shadow-2xl shadow-stone-200/60 border border-stone-100 p-10">
+                <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl shadow-stone-200 border border-stone-100">
                   <div className="text-center mb-10">
-                    <motion.div 
-                      initial={{ y: -10, opacity: 0 }}
-                      animate={{ y: 0, opacity: 1 }}
-                      transition={{ duration: 0.6, ease: "easeOut" }}
-                    >
-                      <span className="text-[10px] uppercase tracking-[0.5em] text-orange-600 font-bold mb-3 block opacity-70">Bienvenido</span>
-                      <h2 className="text-5xl font-extralight tracking-tight text-stone-900 mb-4">
-                        Registro
-                      </h2>
-                      <div className="flex justify-center gap-1 mb-8">
-                        <div className="h-1 w-8 bg-orange-600 rounded-full" />
-                        <div className="h-1 w-2 bg-orange-200 rounded-full" />
-                      </div>
-                    </motion.div>
-                    <p className="text-stone-400 text-sm font-medium max-w-[260px] mx-auto leading-relaxed">
-                      Ingrese su identificador único para registrar su actividad de hoy.
-                    </p>
+                    <div className="bg-stone-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6">
+                      <Clock className="text-orange-600" size={40} />
+                    </div>
+                    <h2 className="text-4xl font-black tracking-tight mb-2">¡Hola!</h2>
+                    <p className="text-stone-500 font-medium">Ingresa tu ID para registrar tu jornada</p>
                   </div>
 
-                  <form onSubmit={handleUserCheck} className="space-y-8">
-                    <div className="space-y-3">
-                      <label className="text-[11px] uppercase tracking-widest text-stone-400 font-bold ml-1">ID de Empleado</label>
-                      <div className="relative group">
-                        <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-stone-300 group-focus-within:text-orange-500 transition-colors">
-                          <IdCard size={20} />
-                        </div>
-                        <input 
-                          type="text" 
-                          value={employeeId}
-                          onChange={(e) => setEmployeeId(e.target.value)}
-                          className="w-full pl-12 pr-4 py-4 rounded-2xl bg-stone-50 border border-stone-200 focus:bg-white focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500 outline-none transition-all text-lg font-medium placeholder:text-stone-300"
-                          placeholder="ID de empleado..."
-                          required
-                        />
-                      </div>
+                  <form onSubmit={handleUserCheck} className="space-y-6">
+                    <div className="relative">
+                      <IdCard className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
+                      <input 
+                        type="text" 
+                        value={employeeId} 
+                        onChange={e => setEmployeeId(e.target.value)}
+                        className="w-full pl-12 pr-4 py-5 rounded-2xl bg-stone-50 border-2 border-transparent focus:border-orange-500 focus:bg-white outline-none transition-all text-xl font-bold"
+                        placeholder="Tu número de ID"
+                        required
+                      />
                     </div>
                     <button 
-                      type="submit"
-                      className="w-full bg-orange-600 hover:bg-orange-700 active:bg-orange-800 text-white font-bold py-4 rounded-2xl shadow-lg shadow-orange-600/20 transition-all transform active:scale-[0.98] flex items-center justify-center gap-3 group"
+                      type="submit" 
+                      className="w-full bg-orange-600 hover:bg-orange-700 text-white py-5 rounded-2xl font-black text-lg shadow-lg shadow-orange-200 transition-all flex justify-center items-center gap-2 group"
                     >
-                      Continuar <ChevronRight size={20} className="group-hover:translate-x-1 transition-transform" />
+                      CONTINUAR
+                      <ChevronRight className="group-hover:translate-x-1 transition-transform" size={24} />
                     </button>
                   </form>
                 </div>
               ) : (
-                <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-6">
-                  <div className="flex items-center justify-between mb-6">
-                    <div>
-                      <h2 className="text-xl font-bold">{currentEmployee?.full_name}</h2>
-                      <p className="text-sm text-stone-500">{currentEmployee?.position}</p>
+                <motion.div 
+                  initial={{ scale: 0.9, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="bg-white p-6 rounded-[2.5rem] shadow-2xl border border-stone-100 overflow-hidden"
+                >
+                  <div className="flex items-center gap-4 mb-6 bg-stone-50 p-4 rounded-2xl">
+                    <div className="bg-orange-600 w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-xl">
+                      {currentEmployee?.full_name.charAt(0)}
                     </div>
-                    <button onClick={stopCamera} className="text-stone-400 hover:text-stone-600">
-                      <XCircle size={24} />
-                    </button>
+                    <div>
+                      <h3 className="font-black text-lg leading-tight">{currentEmployee?.full_name}</h3>
+                      <p className="text-orange-600 font-bold text-xs uppercase tracking-widest">{currentEmployee?.position}</p>
+                    </div>
                   </div>
 
-                  <div className="relative aspect-video bg-stone-900 rounded-xl overflow-hidden mb-6">
-                    <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-                    <canvas ref={canvasRef} className="hidden" />
+                  <div className="relative rounded-2xl overflow-hidden bg-black aspect-[4/3] mb-6 shadow-inner">
+                    <video 
+                      ref={videoRef} 
+                      autoPlay 
+                      playsInline 
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 border-[12px] border-white/10 pointer-events-none"></div>
+                    <div className="absolute top-4 right-4 bg-red-500 w-3 h-3 rounded-full animate-pulse"></div>
                   </div>
+                  
+                  <canvas ref={canvasRef} className="hidden" />
 
                   <div className="grid grid-cols-2 gap-4">
                     <button 
                       onClick={() => handleAttendance('Entrada')}
-                      className="bg-orange-600 hover:bg-orange-700 active:bg-orange-800 active:scale-95 text-white font-bold py-4 rounded-xl flex flex-col items-center gap-2 transition-all shadow-lg shadow-orange-600/20"
+                      className="bg-orange-600 hover:bg-orange-700 text-white p-6 rounded-2xl font-black flex flex-col items-center gap-2 transition-all active:scale-95"
                     >
-                      <LogIn size={24} />
-                      Entrada
+                      <LogIn size={28} />
+                      ENTRADA
                     </button>
                     <button 
                       onClick={() => handleAttendance('Salida')}
-                      className="bg-stone-800 hover:bg-stone-900 active:bg-black active:scale-95 text-white font-bold py-4 rounded-xl flex flex-col items-center gap-2 transition-all shadow-lg shadow-stone-800/20"
+                      className="bg-stone-900 hover:bg-black text-white p-6 rounded-2xl font-black flex flex-col items-center gap-2 transition-all active:scale-95"
                     >
-                      <LogOut size={24} />
-                      Salida
+                      <LogOut size={28} />
+                      SALIDA
                     </button>
                   </div>
-                </div>
+                  
+                  <button 
+                    onClick={() => { stopCamera(); setCurrentEmployee(null); setEmployeeId(''); }}
+                    className="w-full mt-6 text-stone-400 font-bold text-sm hover:text-stone-600"
+                  >
+                    CANCELAR
+                  </button>
+                </motion.div>
               )}
             </motion.div>
           )}
 
-          {/* Admin Login View */}
           {view === 'admin-login' && (
             <motion.div 
               key="admin-login"
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="max-w-md mx-auto mt-12"
+              className="max-w-sm mx-auto"
             >
-              <div className="bg-white rounded-2xl shadow-xl border border-stone-100 p-8">
-                <div className="text-center mb-8">
-                  <div className="bg-stone-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <ShieldCheck className="text-stone-800" size={32} />
-                  </div>
-                  <h2 className="text-2xl font-bold">Acceso Administrativo</h2>
-                </div>
-
-                <form onSubmit={handleAdminLogin} className="space-y-6">
-                  <div>
-                    <label className="block text-sm font-semibold text-stone-700 mb-2">Usuario</label>
-                    <input name="username" type="text" className="w-full px-4 py-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-stone-500" required />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-stone-700 mb-2">Contraseña</label>
-                    <input name="password" type="password" className="w-full px-4 py-3 rounded-xl border border-stone-200 outline-none focus:ring-2 focus:ring-stone-500" required />
-                  </div>
-                  <button type="submit" className="w-full bg-stone-900 text-white font-bold py-3 rounded-xl hover:bg-stone-800 transition-all">
-                    Iniciar Sesión
+              <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-stone-100">
+                <h2 className="text-2xl font-black mb-6 text-center">Acceso Admin</h2>
+                <form onSubmit={handleAdminLogin} className="space-y-4">
+                  <input 
+                    type="text" 
+                    placeholder="Usuario"
+                    className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500"
+                    value={loginData.username}
+                    onChange={e => setLoginData({...loginData, username: e.target.value})}
+                    required
+                  />
+                  <input 
+                    type="password" 
+                    placeholder="Contraseña"
+                    className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500"
+                    value={loginData.password}
+                    onChange={e => setLoginData({...loginData, password: e.target.value})}
+                    required
+                  />
+                  <button type="submit" className="w-full bg-stone-900 text-white p-4 rounded-xl font-bold hover:bg-black transition-colors">
+                    Entrar
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setView('user-check')}
+                    className="w-full text-stone-400 font-bold text-sm"
+                  >
+                    Volver
                   </button>
                 </form>
               </div>
             </motion.div>
           )}
 
-          {/* Admin Dashboard */}
-          {admin && (
-            <motion.div 
-              key="admin-dashboard"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="space-y-8"
-            >
-              <div className="flex gap-4 overflow-x-auto pb-2">
-                <button 
-                  onClick={() => setView('admin-dashboard')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap active:scale-95 ${view === 'admin-dashboard' ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20' : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'}`}
-                >
-                  <Users size={18} /> Gestión de Usuarios
-                </button>
-                <button 
-                  onClick={() => setView('admin-logs')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap active:scale-95 ${view === 'admin-logs' ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/20' : 'bg-white text-stone-600 border border-stone-200 hover:bg-stone-50'}`}
-                >
-                  <History size={18} /> Historial de Registros
-                </button>
+          {view === 'admin-dashboard' && (
+            <motion.div key="admin-dashboard" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
+              <div className="flex justify-between items-end">
+                <div>
+                  <h2 className="text-3xl font-black tracking-tight">Empleados</h2>
+                  <p className="text-stone-500 font-medium">Gestiona el personal de la central</p>
+                </div>
               </div>
 
-              {view === 'admin-dashboard' && (
-                <div className="grid lg:grid-cols-3 gap-8">
-                  {/* Add Employee Form */}
-                  <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6 h-fit">
-                    <h3 className="text-lg font-bold mb-6 flex items-center gap-2">
-                      <Plus size={20} className="text-orange-600" /> Nuevo Usuario
-                    </h3>
-                    <form onSubmit={handleAddEmployee} className="space-y-4">
-                      <div>
-                        <label className="text-xs font-bold uppercase text-stone-400">ID Asignado</label>
-                        <input name="id" type="text" className="w-full px-3 py-2 rounded-lg border border-stone-200 mt-1 focus:ring-2 focus:ring-orange-500 outline-none" placeholder="EMP-001" required />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold uppercase text-stone-400">Nombre Completo</label>
-                        <input name="full_name" type="text" className="w-full px-3 py-2 rounded-lg border border-stone-200 mt-1 focus:ring-2 focus:ring-orange-500 outline-none" required />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold uppercase text-stone-400">Cédula</label>
-                        <input name="id_card" type="text" className="w-full px-3 py-2 rounded-lg border border-stone-200 mt-1 focus:ring-2 focus:ring-orange-500 outline-none" required />
-                      </div>
-                      <div>
-                        <label className="text-xs font-bold uppercase text-stone-400">Puesto</label>
-                        <input name="position" type="text" className="w-full px-3 py-2 rounded-lg border border-stone-200 mt-1 focus:ring-2 focus:ring-orange-500 outline-none" required />
-                      </div>
-                      <button type="submit" className="w-full bg-orange-600 text-white font-bold py-2 rounded-lg mt-4 hover:bg-orange-700 active:bg-orange-800 active:scale-95 transition-all shadow-md shadow-orange-600/10">
-                        Registrar Usuario
-                      </button>
-                    </form>
-                  </div>
-
-                  {/* Employee List */}
-                  <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
-                    <table className="w-full text-left">
-                      <thead className="bg-stone-50 border-b border-stone-200">
-                        <tr>
-                          <th className="px-6 py-4 text-xs font-bold uppercase text-stone-400">Usuario</th>
-                          <th className="px-6 py-4 text-xs font-bold uppercase text-stone-400">ID / Cédula</th>
-                          <th className="px-6 py-4 text-xs font-bold uppercase text-stone-400">Acciones</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-stone-100">
-                        {employees.map(emp => (
-                          <tr key={emp.id} className="hover:bg-stone-50/50 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="font-bold">{emp.full_name}</div>
-                              <div className="text-xs text-stone-500">{emp.position}</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-sm font-mono">{emp.id}</div>
-                              <div className="text-xs text-stone-400">{emp.id_card}</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="flex gap-2">
-                                <button className="p-2 text-stone-400 hover:text-orange-600 transition-colors"><Edit2 size={16} /></button>
-                                <button onClick={() => deleteEmployee(emp.id)} className="p-2 text-stone-400 hover:text-red-600 transition-colors"><Trash2 size={16} /></button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+              <div className="grid md:grid-cols-3 gap-8">
+                <div className="bg-white p-6 rounded-3xl shadow-lg border border-stone-100 h-fit sticky top-24">
+                  <h3 className="text-lg font-black mb-4 flex items-center gap-2">
+                    <Plus className="text-orange-600" size={20} />
+                    Nuevo Empleado
+                  </h3>
+                  <form onSubmit={handleAddEmployee} className="space-y-3">
+                    <input 
+                      type="text" placeholder="ID Empleado" required
+                      className="w-full p-3 rounded-xl bg-stone-50 border text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                      value={newEmployee.id}
+                      onChange={e => setNewEmployee({...newEmployee, id: e.target.value})}
+                    />
+                    <input 
+                      type="text" placeholder="Nombre Completo" required
+                      className="w-full p-3 rounded-xl bg-stone-50 border text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                      value={newEmployee.full_name}
+                      onChange={e => setNewEmployee({...newEmployee, full_name: e.target.value})}
+                    />
+                    <input 
+                      type="text" placeholder="Cédula / ID Card" required
+                      className="w-full p-3 rounded-xl bg-stone-50 border text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                      value={newEmployee.id_card}
+                      onChange={e => setNewEmployee({...newEmployee, id_card: e.target.value})}
+                    />
+                    <input 
+                      type="text" placeholder="Cargo / Posición" required
+                      className="w-full p-3 rounded-xl bg-stone-50 border text-sm outline-none focus:ring-2 focus:ring-orange-500"
+                      value={newEmployee.position}
+                      onChange={e => setNewEmployee({...newEmployee, position: e.target.value})}
+                    />
+                    <button type="submit" className="w-full bg-orange-600 text-white p-3 rounded-xl font-bold text-sm hover:bg-orange-700 transition-colors">
+                      Guardar Empleado
+                    </button>
+                  </form>
                 </div>
-              )}
 
-              {view === 'admin-logs' && (
-                <div className="bg-white rounded-2xl shadow-sm border border-stone-200 overflow-hidden">
-                  <div className="p-6 border-b border-stone-200 flex justify-between items-center">
-                    <h3 className="text-lg font-bold">Historial de Asistencia</h3>
-                    <div className="text-sm text-stone-500">{logs.length} registros encontrados</div>
-                  </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left">
-                      <thead className="bg-stone-50 border-b border-stone-200">
-                        <tr>
-                          <th className="px-6 py-4 text-xs font-bold uppercase text-stone-400">Foto</th>
-                          <th className="px-6 py-4 text-xs font-bold uppercase text-stone-400">Empleado</th>
-                          <th className="px-6 py-4 text-xs font-bold uppercase text-stone-400">Tipo</th>
-                          <th className="px-6 py-4 text-xs font-bold uppercase text-stone-400">Fecha y Hora</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-stone-100">
-                        {logs.map(log => (
-                          <tr key={log.id} className="hover:bg-stone-50/50 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="w-12 h-12 rounded-lg overflow-hidden bg-stone-100 border border-stone-200">
-                                <img src={log.photo} alt="Capture" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                              </div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="font-bold">{log.employee_name}</div>
-                              <div className="text-xs text-stone-500">{log.position} (ID: {log.employee_id})</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <span className={`px-3 py-1 rounded-full text-xs font-bold ${log.type === 'Entrada' ? 'bg-orange-100 text-orange-700' : 'bg-stone-100 text-stone-700'}`}>
-                                {log.type}
-                              </span>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-sm text-stone-600 flex items-center gap-2">
-                                <Clock size={14} className="text-stone-400" />
-                                {new Date(log.timestamp).toLocaleString()}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                <div className="md:col-span-2 space-y-4">
+                  {employees.map(emp => (
+                    <div key={emp.id} className="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex justify-between items-center group hover:shadow-md transition-shadow">
+                      <div className="flex items-center gap-4">
+                        <div className="bg-stone-100 w-12 h-12 rounded-xl flex items-center justify-center text-stone-400">
+                          <User size={24} />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-stone-900">{emp.full_name}</h4>
+                          <div className="flex gap-3 text-xs font-bold text-stone-400 uppercase tracking-wider">
+                            <span>ID: {emp.id}</span>
+                            <span className="text-orange-600/50">•</span>
+                            <span>{emp.position}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => setEditingEmployee(emp)}
+                          className="p-2 text-stone-400 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition-all"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                        <button 
+                          onClick={() => setShowDeleteConfirm(emp.id)}
+                          className="p-2 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              )}
+              </div>
+            </motion.div>
+          )}
+
+          {view === 'admin-logs' && (
+            <motion.div key="admin-logs" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+              <div>
+                <h2 className="text-3xl font-black tracking-tight">Historial</h2>
+                <p className="text-stone-500 font-medium">Registros de entrada y salida en tiempo real</p>
+              </div>
+
+              <div className="bg-white rounded-[2rem] shadow-xl border border-stone-100 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-stone-50 border-b border-stone-100">
+                        <th className="p-5 text-xs font-black uppercase tracking-widest text-stone-400">Empleado</th>
+                        <th className="p-5 text-xs font-black uppercase tracking-widest text-stone-400">Tipo</th>
+                        <th className="p-5 text-xs font-black uppercase tracking-widest text-stone-400">Fecha y Hora</th>
+                        <th className="p-5 text-xs font-black uppercase tracking-widest text-stone-400">Evidencia</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-50">
+                      {logs.map(log => (
+                        <tr key={log.id} className="hover:bg-stone-50/50 transition-colors">
+                          <td className="p-5">
+                            <div className="font-bold text-stone-900">{log.employee_name}</div>
+                            <div className="text-xs text-stone-400 font-medium uppercase tracking-tighter">{log.position}</div>
+                          </td>
+                          <td className="p-5">
+                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                              log.type === 'Entrada' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
+                            }`}>
+                              {log.type}
+                            </span>
+                          </td>
+                          <td className="p-5 text-sm font-medium text-stone-500">
+                            {new Date(log.timestamp).toLocaleString()}
+                          </td>
+                          <td className="p-5">
+                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-stone-100 border border-stone-200">
+                              <img 
+                                src={log.photo} 
+                                alt="Captura" 
+                                className="w-full h-full object-cover cursor-zoom-in hover:scale-110 transition-transform"
+                                onClick={() => window.open(log.photo)}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </main>
 
-      {/* Status Messages */}
+      {/* MODALES */}
+      <AnimatePresence>
+        {editingEmployee && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setEditingEmployee(null)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl"
+            >
+              <h3 className="text-2xl font-black mb-6">Editar Empleado</h3>
+              <form onSubmit={handleUpdateEmployee} className="space-y-4">
+                <input 
+                  type="text" value={editingEmployee.full_name} 
+                  onChange={e => setEditingEmployee({...editingEmployee, full_name: e.target.value})}
+                  className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
+                  placeholder="Nombre Completo"
+                />
+                <input 
+                  type="text" value={editingEmployee.id_card} 
+                  onChange={e => setEditingEmployee({...editingEmployee, id_card: e.target.value})}
+                  className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
+                  placeholder="Cédula"
+                />
+                <input 
+                  type="text" value={editingEmployee.position} 
+                  onChange={e => setEditingEmployee({...editingEmployee, position: e.target.value})}
+                  className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
+                  placeholder="Cargo"
+                />
+                <div className="flex gap-3 pt-4">
+                  <button type="button" onClick={() => setEditingEmployee(null)} className="flex-1 p-4 rounded-xl font-bold text-stone-400 hover:bg-stone-50 transition-colors">Cancelar</button>
+                  <button type="submit" className="flex-1 bg-orange-600 text-white p-4 rounded-xl font-bold hover:bg-orange-700 transition-colors shadow-lg shadow-orange-200">Guardar</button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowDeleteConfirm(null)}
+              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="relative bg-white w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl text-center"
+            >
+              <div className="bg-red-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 text-red-600">
+                <Trash2 size={40} />
+              </div>
+              <h3 className="text-2xl font-black mb-2">¿Estás seguro?</h3>
+              <p className="text-stone-500 font-medium mb-8">Esta acción eliminará permanentemente al empleado.</p>
+              <div className="flex gap-3">
+                <button onClick={() => setShowDeleteConfirm(null)} className="flex-1 p-4 rounded-xl font-bold text-stone-400 hover:bg-stone-50 transition-colors">Cancelar</button>
+                <button onClick={() => deleteEmployee(showDeleteConfirm)} className="flex-1 bg-red-600 text-white p-4 rounded-xl font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-200">Eliminar</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Mensajes Flotantes */}
       <AnimatePresence>
         {message && (
           <motion.div 
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[100]"
+            initial={{ y: 50, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 50, opacity: 0 }}
+            className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[200]"
           >
-            <div className={`px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 font-bold ${message.type === 'success' ? 'bg-orange-600 text-white' : 'bg-red-600 text-white'}`}>
+            <div className={`px-6 py-3 rounded-full shadow-2xl text-white font-bold flex items-center gap-3 ${
+              message.type === 'success' ? 'bg-orange-600' : 'bg-red-600'
+            }`}>
               {message.type === 'success' ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
               {message.text}
             </div>
