@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Camera, Users, History, LogOut, LogIn, Plus, Trash2, Edit2, ShieldCheck, Clock, IdCard, CheckCircle2, XCircle, ChevronRight, User } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 type View = 'user-check' | 'admin-login' | 'admin-dashboard' | 'admin-logs' | 'admin-violations';
 
@@ -95,9 +95,9 @@ export default function App() {
   };
 
   const filteredLogs = logs.filter(log => 
-    log.employee_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    log.employee_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    log.status.toLowerCase().includes(searchTerm.toLowerCase())
+    (log.employee_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (log.employee_id?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (log.status?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
   const showStatus = (text: string, type: 'success' | 'error') => {
