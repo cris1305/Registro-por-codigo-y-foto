@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Camera, Users, History, LogOut, LogIn, Plus, Trash2, Edit2, ShieldCheck, Clock, IdCard, CheckCircle2, XCircle, ChevronRight, User } from 'lucide-react';
+import { Camera, Users, History, LogOut, LogIn, Plus, Trash2, Edit2, ShieldCheck, Clock, Contact, CheckCircle2, XCircle, ChevronRight, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 type View = 'user-check' | 'admin-login' | 'admin-dashboard' | 'admin-logs' | 'admin-violations';
@@ -349,7 +349,7 @@ export default function App() {
 
                   <form onSubmit={handleUserCheck} className="space-y-6">
                     <div className="relative">
-                      <IdCard className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
+                      <Contact className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={20} />
                       <input 
                         type="text" 
                         value={employeeId} 
