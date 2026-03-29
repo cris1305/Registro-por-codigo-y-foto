@@ -283,8 +283,6 @@ export default function App() {
         showStatus('Empleado agregado correctamente', 'success');
         setNewEmployee({ id: '', full_name: '', id_card: '', position: '' });
         setIsAddingEmployee(false);
-        // Asegurarnos de que seguimos en la vista de empleados
-        setView('admin-employees');
         fetchEmployees();
         fetchStats();
       } else {
@@ -402,10 +400,10 @@ export default function App() {
             <div className="flex items-center gap-4">
               <div className="text-right hidden sm:block">
                 <p className="text-xs font-black text-stone-400 uppercase tracking-widest leading-none">Administrador</p>
-                <p className="text-sm font-bold text-stone-900">{admin.username}</p>
+                <p className="text-sm font-bold text-stone-900">{admin.username || 'Admin'}</p>
               </div>
               <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-black border-2 border-white shadow-sm">
-                {admin.username.charAt(0).toUpperCase()}
+                {(admin.username || '?').charAt(0).toUpperCase()}
               </div>
             </div>
           </header>
@@ -493,8 +491,8 @@ export default function App() {
                               <div className="flex items-center gap-3">
                                 <img src={log.photo} className="w-10 h-10 rounded-lg object-cover" alt="" />
                                 <div>
-                                  <p className="font-bold text-sm">{log.employee_name}</p>
-                                  <p className="text-[10px] text-stone-400 font-bold uppercase">{log.type} • {log.timestamp.split(' ')[1]}</p>
+                                  <p className="font-bold text-sm">{log.employee_name || 'Sin nombre'}</p>
+                                  <p className="text-[10px] text-stone-400 font-bold uppercase">{log.type} • {(log.timestamp || '').split(' ')[1] || '--:--'}</p>
                                 </div>
                               </div>
                               <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
@@ -524,8 +522,8 @@ export default function App() {
                                   <User size={20} />
                                 </div>
                                 <div>
-                                  <p className="font-bold text-sm">{emp.full_name}</p>
-                                  <p className="text-[10px] text-stone-400 font-bold uppercase">{emp.position}</p>
+                                  <p className="font-bold text-sm">{emp.full_name || 'Sin nombre'}</p>
+                                  <p className="text-[10px] text-stone-400 font-bold uppercase">{emp.position || 'Sin cargo'}</p>
                                 </div>
                               </div>
                               <div className="text-right">
@@ -584,7 +582,10 @@ export default function App() {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-stone-50">
-                            {employees.filter(e => e.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || e.id.includes(searchTerm)).map(emp => (
+                            {employees.filter(e => 
+                              (e.full_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) || 
+                              (e.id?.toLowerCase() || '').includes(searchTerm.toLowerCase())
+                            ).map(emp => (
                               <tr key={emp.id} className="hover:bg-stone-50/50 transition-colors group">
                                 <td className="p-6">
                                   <div className="flex items-center gap-4">
@@ -672,8 +673,8 @@ export default function App() {
                             {filteredLogs.map(log => (
                               <tr key={log.id} className={`hover:bg-stone-50/30 transition-colors ${log.status !== 'A tiempo' ? 'bg-red-50/20' : ''}`}>
                                 <td className="p-6">
-                                  <div className="font-black text-stone-900">{log.employee_name}</div>
-                                  <div className="text-[10px] text-stone-400 font-bold uppercase tracking-tighter">ID: {log.employee_id} • {log.position}</div>
+                                  <div className="font-black text-stone-900">{log.employee_name || 'Sin nombre'}</div>
+                                  <div className="text-[10px] text-stone-400 font-bold uppercase tracking-tighter">ID: {log.employee_id || '---'} • {log.position || '---'}</div>
                                 </td>
                                 <td className="p-6">
                                   <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
@@ -736,8 +737,8 @@ export default function App() {
                             {logs.filter(l => l.status !== 'A tiempo').map(log => (
                               <tr key={log.id} className="hover:bg-red-50/30 transition-colors bg-red-50/10">
                                 <td className="p-6">
-                                  <div className="font-black text-stone-900">{log.employee_name}</div>
-                                  <div className="text-[10px] text-stone-400 font-bold uppercase tracking-tighter">ID: {log.employee_id} • {log.position}</div>
+                                  <div className="font-black text-stone-900">{log.employee_name || 'Sin nombre'}</div>
+                                  <div className="text-[10px] text-stone-400 font-bold uppercase tracking-tighter">ID: {log.employee_id || '---'} • {log.position || '---'}</div>
                                 </td>
                                 <td className="p-6">
                                   <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
