@@ -39,6 +39,7 @@ export default function App() {
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showCameraHelp, setShowCameraHelp] = useState(false);
+  const [cameraPermissionStatus, setCameraPermissionStatus] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown');
   
   // Admin States
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -72,6 +73,42 @@ export default function App() {
       setView('admin-dashboard');
     }
   }, [admin, view]);
+
+  const requestCameraPermission = async () => {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setShowCameraHelp(true);
+        return;
+      }
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      stream.getTracks().forEach(track => track.stop());
+      setCameraPermissionStatus('granted');
+      showStatus('Cámara habilitada correctamente', 'success');
+    } catch (e) {
+      setCameraPermissionStatus('denied');
+      showStatus('Acceso a la cámara denegado o no disponible.', 'error');
+    }
+  };
+
+  useEffect(() => {
+    const checkPermission = async () => {
+      try {
+        if (navigator.permissions && navigator.permissions.query) {
+          const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
+          setCameraPermissionStatus(status.state as any);
+          status.onchange = () => setCameraPermissionStatus(status.state as any);
+          
+          // Si el estado es prompt, intentar pedir permiso al cargar
+          if (status.state === 'prompt' && view === 'user-check') {
+            requestCameraPermission();
+          }
+        }
+      } catch (e) {
+        console.log("Error al consultar permisos:", e);
+      }
+    };
+    checkPermission();
+  }, [view]);
 
   const fetchEmployees = async () => {
     try {
@@ -1115,6 +1152,16 @@ export default function App() {
                     </div>
                     <h2 className="text-4xl font-black tracking-tight mb-2">¡Hola!</h2>
                     <p className="text-stone-500 font-medium">Ingresa tu ID para registrar tu jornada</p>
+                    
+                    {cameraPermissionStatus !== 'granted' && (
+                      <button 
+                        onClick={requestCameraPermission}
+                        className="mt-4 inline-flex items-center gap-2 px-4 py-2 bg-orange-100 text-orange-600 rounded-full text-xs font-black hover:bg-orange-200 transition-colors"
+                      >
+                        <Camera size={14} />
+                        HABILITAR CÁMARA
+                      </button>
+                    )}
                   </div>
 
                   <form onSubmit={handleUserCheck} className="space-y-6">
