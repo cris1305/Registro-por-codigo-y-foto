@@ -29,8 +29,13 @@ interface AttendanceLog {
 export default function App() {
   const [view, setView] = useState<View>('user-check');
   const [admin, setAdmin] = useState<any>(() => {
-    const saved = localStorage.getItem('admin_session');
-    return saved ? JSON.parse(saved) : null;
+    try {
+      const saved = localStorage.getItem('admin_session');
+      return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+      console.error("Error parsing admin_session:", e);
+      return null;
+    }
   });
   const [loginData, setLoginData] = useState({ username: '', password: '' });
   const [employeeId, setEmployeeId] = useState('');
@@ -71,6 +76,8 @@ export default function App() {
   useEffect(() => {
     if (admin && view === 'admin-login') {
       setView('admin-dashboard');
+    } else if (!admin && view.startsWith('admin-')) {
+      setView('admin-login');
     }
   }, [admin, view]);
 
@@ -120,20 +127,32 @@ export default function App() {
   };
 
   const fetchLogs = async () => {
-    const res = await fetch('/api/logs');
-    setLogs(await res.json());
+    try {
+      const res = await fetch('/api/logs');
+      if (res.ok) setLogs(await res.json());
+    } catch (e) {
+      console.error("Error fetching logs:", e);
+    }
   };
 
   const fetchSettings = async () => {
-    const res = await fetch('/api/settings');
-    setSettings(await res.json());
+    try {
+      const res = await fetch('/api/settings');
+      if (res.ok) setSettings(await res.json());
+    } catch (e) {
+      console.error("Error fetching settings:", e);
+    }
   };
 
   const fetchStats = async () => {
-    const now = new Date();
-    const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
-    const res = await fetch(`/api/stats/summary?date=${today}`);
-    setStats(await res.json());
+    try {
+      const now = new Date();
+      const today = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+      const res = await fetch(`/api/stats/summary?date=${today}`);
+      if (res.ok) setStats(await res.json());
+    } catch (e) {
+      console.error("Error fetching stats:", e);
+    }
   };
 
   const handleUpdateSettings = async (e: React.FormEvent) => {
