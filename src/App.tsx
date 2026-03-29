@@ -67,6 +67,12 @@ export default function App() {
     }
   }, [admin]);
 
+  useEffect(() => {
+    if (admin && view === 'admin-login') {
+      setView('admin-dashboard');
+    }
+  }, [admin, view]);
+
   const fetchEmployees = async () => {
     try {
       const res = await fetch('/api/employees');
@@ -820,6 +826,203 @@ export default function App() {
             </div>
           </div>
         </main>
+
+        {/* MODALES */}
+        <AnimatePresence>
+          {isAddingEmployee && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => setIsAddingEmployee(false)}
+                className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+              />
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="relative bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl"
+              >
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="text-2xl font-black">Nuevo Empleado</h3>
+                  <button onClick={() => setIsAddingEmployee(false)} className="text-stone-400 hover:text-stone-600">
+                    <X size={24} />
+                  </button>
+                </div>
+                <form onSubmit={handleAddEmployee} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">ID de Empleado</label>
+                    <input 
+                      type="text" placeholder="Ej: EMP001" required
+                      className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
+                      value={newEmployee.id}
+                      onChange={e => setNewEmployee({...newEmployee, id: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Nombre Completo</label>
+                    <input 
+                      type="text" placeholder="Ej: Juan Pérez" required
+                      className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
+                      value={newEmployee.full_name}
+                      onChange={e => setNewEmployee({...newEmployee, full_name: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Cédula / ID Card</label>
+                    <input 
+                      type="text" placeholder="Ej: 12345678-9" required
+                      className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
+                      value={newEmployee.id_card}
+                      onChange={e => setNewEmployee({...newEmployee, id_card: e.target.value})}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Cargo / Posición</label>
+                    <input 
+                      type="text" placeholder="Ej: Operador" required
+                      className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
+                      value={newEmployee.position}
+                      onChange={e => setNewEmployee({...newEmployee, position: e.target.value})}
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-4">
+                    <button type="button" onClick={() => setIsAddingEmployee(false)} className="flex-1 p-4 rounded-xl font-bold text-stone-400 hover:bg-stone-50 transition-colors">Cancelar</button>
+                    <button type="submit" className="flex-1 bg-orange-600 text-white p-4 rounded-xl font-bold hover:bg-orange-700 transition-colors shadow-lg shadow-orange-200">Guardar</button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+
+          {editingEmployee && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => setEditingEmployee(null)}
+                className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+              />
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="relative bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl"
+              >
+                <h3 className="text-2xl font-black mb-6">Editar Empleado</h3>
+                <form onSubmit={handleUpdateEmployee} className="space-y-4">
+                  <input 
+                    type="text" value={editingEmployee.full_name} 
+                    onChange={e => setEditingEmployee({...editingEmployee, full_name: e.target.value})}
+                    className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
+                    placeholder="Nombre Completo"
+                  />
+                  <input 
+                    type="text" value={editingEmployee.id_card} 
+                    onChange={e => setEditingEmployee({...editingEmployee, id_card: e.target.value})}
+                    className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
+                    placeholder="Cédula"
+                  />
+                  <input 
+                    type="text" value={editingEmployee.position} 
+                    onChange={e => setEditingEmployee({...editingEmployee, position: e.target.value})}
+                    className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
+                    placeholder="Cargo"
+                  />
+                  <div className="flex gap-3 pt-4">
+                    <button type="button" onClick={() => setEditingEmployee(null)} className="flex-1 p-4 rounded-xl font-bold text-stone-400 hover:bg-stone-50 transition-colors">Cancelar</button>
+                    <button type="submit" className="flex-1 bg-orange-600 text-white p-4 rounded-xl font-bold hover:bg-orange-700 transition-colors shadow-lg shadow-orange-200">Guardar</button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+
+          {showDeleteConfirm && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => setShowDeleteConfirm(null)}
+                className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+              />
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="relative bg-white w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl text-center"
+              >
+                <div className="bg-red-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 text-red-600">
+                  <Trash2 size={40} />
+                </div>
+                <h3 className="text-2xl font-black mb-2">¿Estás seguro?</h3>
+                <p className="text-stone-500 font-medium mb-8">Esta acción eliminará permanentemente al empleado.</p>
+                <div className="flex gap-3">
+                  <button onClick={() => setShowDeleteConfirm(null)} className="flex-1 p-4 rounded-xl font-bold text-stone-400 hover:bg-stone-50 transition-colors">Cancelar</button>
+                  <button onClick={() => deleteEmployee(showDeleteConfirm)} className="flex-1 bg-red-600 text-white p-4 rounded-xl font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-200">Eliminar</button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+
+          {isEditingSettings && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                onClick={() => setIsEditingSettings(false)}
+                className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
+              />
+              <motion.div 
+                initial={{ scale: 0.9, opacity: 0, y: 20 }}
+                animate={{ scale: 1, opacity: 1, y: 0 }}
+                exit={{ scale: 0.9, opacity: 0, y: 20 }}
+                className="relative bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl"
+              >
+                <h3 className="text-2xl font-black mb-6">Configurar Horarios</h3>
+                <form onSubmit={handleUpdateSettings} className="space-y-6">
+                  <div>
+                    <label className="block text-xs font-black text-stone-400 uppercase tracking-widest mb-2">Hora de Entrada (HH:MM)</label>
+                    <input 
+                      type="time" 
+                      value={settings.entry_time} 
+                      onChange={e => setSettings({...settings, entry_time: e.target.value})}
+                      className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold text-xl"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-black text-stone-400 uppercase tracking-widest mb-2">Hora de Salida (HH:MM)</label>
+                    <input 
+                      type="time" 
+                      value={settings.exit_time} 
+                      onChange={e => setSettings({...settings, exit_time: e.target.value})}
+                      className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold text-xl"
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-4">
+                    <button type="button" onClick={() => setIsEditingSettings(false)} className="flex-1 p-4 rounded-xl font-bold text-stone-400 hover:bg-stone-50 transition-colors">Cancelar</button>
+                    <button type="submit" className="flex-1 bg-orange-600 text-white p-4 rounded-xl font-bold hover:bg-orange-700 transition-colors shadow-lg shadow-orange-200">Guardar</button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Mensajes Flotantes */}
+        <AnimatePresence>
+          {message && (
+            <motion.div 
+              initial={{ y: 50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: 50, opacity: 0 }}
+              className="fixed bottom-10 left-1/2 -translate-x-1/2 z-[200]"
+            >
+              <div className={`px-6 py-3 rounded-full shadow-2xl text-white font-bold flex items-center gap-3 ${
+                message.type === 'success' ? 'bg-orange-600' : 'bg-red-600'
+              }`}>
+                {message.type === 'success' ? <CheckCircle2 size={20} /> : <XCircle size={20} />}
+                {message.text}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     );
   }
@@ -843,7 +1046,7 @@ export default function App() {
         
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => setView('admin-login')} 
+            onClick={() => setView(admin ? 'admin-dashboard' : 'admin-login')} 
             className="text-stone-300 hover:text-orange-600 transition-colors"
           >
             <ShieldCheck size={20} />
@@ -1033,631 +1236,10 @@ export default function App() {
             </motion.div>
           )}
 
-          {view === 'admin-dashboard' && (
-            <motion.div key="admin-dashboard" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                  <h2 className="text-4xl font-black tracking-tight">Bienvenido, {admin.username}</h2>
-                  <p className="text-stone-500 font-medium">Resumen general del sistema de asistencia</p>
-                </div>
-                <div className="flex gap-3">
-                  <button 
-                    onClick={() => setView('admin-logs')}
-                    className="bg-white border border-stone-200 px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 hover:bg-stone-50 transition-all shadow-sm"
-                  >
-                    <FileText size={18} className="text-stone-400" />
-                    Ver Historial
-                  </button>
-                  <button 
-                    onClick={() => setView('admin-settings')}
-                    className="bg-stone-900 text-white px-6 py-3 rounded-2xl font-bold text-sm flex items-center gap-2 hover:bg-black transition-all shadow-lg shadow-stone-200"
-                  >
-                    <Settings size={18} />
-                    Configuración
-                  </button>
-                </div>
-              </div>
-
-              {/* Estadísticas */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-stone-100 group hover:border-orange-200 transition-all">
-                  <div className="bg-stone-50 w-12 h-12 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-orange-50 transition-colors">
-                    <Users className="text-stone-400 group-hover:text-orange-600" size={24} />
-                  </div>
-                  <p className="text-xs font-black text-stone-400 uppercase tracking-widest mb-1">Total Empleados</p>
-                  <p className="text-4xl font-black">{stats.total_employees}</p>
-                </div>
-                
-                <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-stone-100 group hover:border-green-200 transition-all">
-                  <div className="bg-stone-50 w-12 h-12 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-green-50 transition-colors">
-                    <CheckCircle2 className="text-stone-400 group-hover:text-green-600" size={24} />
-                  </div>
-                  <p className="text-xs font-black text-stone-400 uppercase tracking-widest mb-1">A tiempo hoy</p>
-                  <p className="text-4xl font-black text-green-600">{stats.on_time_today}</p>
-                </div>
-
-                <div 
-                  className="bg-white p-8 rounded-[2rem] shadow-sm border border-stone-100 group hover:border-red-200 transition-all cursor-pointer"
-                  onClick={() => setView('admin-violations')}
-                >
-                  <div className="bg-stone-50 w-12 h-12 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-red-50 transition-colors">
-                    <AlertTriangle className="text-stone-400 group-hover:text-red-600" size={24} />
-                  </div>
-                  <p className="text-xs font-black text-stone-400 uppercase tracking-widest mb-1">Tarde (5 días)</p>
-                  <div className="flex justify-between items-end">
-                    <p className="text-4xl font-black text-red-600">{stats.late_last_5_days}</p>
-                    <ChevronRight size={20} className="text-red-200 mb-1" />
-                  </div>
-                </div>
-
-                <div 
-                  className="bg-white p-8 rounded-[2rem] shadow-sm border border-stone-100 group hover:border-orange-200 transition-all cursor-pointer"
-                  onClick={() => setView('admin-violations')}
-                >
-                  <div className="bg-stone-50 w-12 h-12 rounded-2xl flex items-center justify-center mb-4 group-hover:bg-orange-50 transition-colors">
-                    <Clock className="text-stone-400 group-hover:text-orange-600" size={24} />
-                  </div>
-                  <p className="text-xs font-black text-stone-400 uppercase tracking-widest mb-1">Salida Temprana hoy</p>
-                  <div className="flex justify-between items-end">
-                    <p className="text-4xl font-black text-orange-600">{stats.early_exit_today}</p>
-                    <ChevronRight size={20} className="text-orange-200 mb-1" />
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid lg:grid-cols-2 gap-8">
-                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100">
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-black flex items-center gap-2">
-                      <History className="text-orange-600" size={24} />
-                      Últimos Registros
-                    </h3>
-                    <button onClick={() => setView('admin-logs')} className="text-orange-600 font-bold text-sm hover:underline">Ver todos</button>
-                  </div>
-                  <div className="space-y-4">
-                    {logs.slice(0, 5).map(log => (
-                      <div key={log.id} className="flex items-center justify-between p-4 rounded-2xl bg-stone-50 border border-stone-100">
-                        <div className="flex items-center gap-3">
-                          <img src={log.photo} className="w-10 h-10 rounded-lg object-cover" alt="" />
-                          <div>
-                            <p className="font-bold text-sm">{log.employee_name}</p>
-                            <p className="text-[10px] text-stone-400 font-bold uppercase">{log.type} • {log.timestamp.split(' ')[1]}</p>
-                          </div>
-                        </div>
-                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          log.status === 'A tiempo' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
-                        }`}>
-                          {log.status}
-                        </span>
-                      </div>
-                    ))}
-                    {logs.length === 0 && <p className="text-center py-10 text-stone-400 font-bold">No hay registros hoy</p>}
-                  </div>
-                </div>
-
-                <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-stone-100">
-                  <div className="flex justify-between items-center mb-6">
-                    <h3 className="text-xl font-black flex items-center gap-2">
-                      <Users className="text-orange-600" size={24} />
-                      Personal Reciente
-                    </h3>
-                    <button onClick={() => setView('admin-employees')} className="text-orange-600 font-bold text-sm hover:underline">Gestionar</button>
-                  </div>
-                  <div className="space-y-4">
-                    {employees.slice(0, 5).map(emp => (
-                      <div key={emp.id} className="flex items-center justify-between p-4 rounded-2xl bg-stone-50 border border-stone-100">
-                        <div className="flex items-center gap-3">
-                          <div className="bg-white w-10 h-10 rounded-lg flex items-center justify-center text-stone-400 border border-stone-200">
-                            <User size={20} />
-                          </div>
-                          <div>
-                            <p className="font-bold text-sm">{emp.full_name}</p>
-                            <p className="text-[10px] text-stone-400 font-bold uppercase">{emp.position}</p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-[10px] font-black text-stone-400 uppercase tracking-widest">ID: {emp.id}</p>
-                        </div>
-                      </div>
-                    ))}
-                    {employees.length === 0 && <p className="text-center py-10 text-stone-400 font-bold">No hay empleados registrados</p>}
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {view === 'admin-employees' && (
-            <motion.div key="admin-employees" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                  <h2 className="text-3xl font-black tracking-tight">Gestión de Personal</h2>
-                  <p className="text-stone-500 font-medium">Agrega, edita o elimina empleados del sistema</p>
-                </div>
-                <button 
-                  onClick={() => setIsAddingEmployee(true)}
-                  className="bg-orange-600 text-white px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-orange-700 transition-all shadow-lg shadow-orange-200"
-                >
-                  <Plus size={20} />
-                  NUEVO EMPLEADO
-                </button>
-              </div>
-
-              <div className="bg-white rounded-[2.5rem] shadow-xl border border-stone-100 overflow-hidden">
-                <div className="p-6 border-b border-stone-100 bg-stone-50/50 flex flex-col md:flex-row gap-4 justify-between">
-                  <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-stone-400" size={18} />
-                    <input 
-                      type="text" 
-                      placeholder="Buscar por nombre o ID..." 
-                      className="w-full pl-12 pr-4 py-3 rounded-xl bg-white border border-stone-200 outline-none focus:ring-2 focus:ring-orange-500 transition-all font-medium"
-                      value={searchTerm}
-                      onChange={e => setSearchTerm(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex items-center gap-4 text-sm font-bold text-stone-400">
-                    <span>{employees.length} Empleados en total</span>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-stone-50/50 border-b border-stone-100">
-                        <th className="p-6 text-xs font-black uppercase tracking-widest text-stone-400">Empleado</th>
-                        <th className="p-6 text-xs font-black uppercase tracking-widest text-stone-400">ID / Cédula</th>
-                        <th className="p-6 text-xs font-black uppercase tracking-widest text-stone-400">Cargo</th>
-                        <th className="p-6 text-xs font-black uppercase tracking-widest text-stone-400 text-right">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-50">
-                      {employees.filter(e => e.full_name.toLowerCase().includes(searchTerm.toLowerCase()) || e.id.includes(searchTerm)).map(emp => (
-                        <tr key={emp.id} className="hover:bg-stone-50/50 transition-colors group">
-                          <td className="p-6">
-                            <div className="flex items-center gap-4">
-                              <div className="bg-stone-100 w-12 h-12 rounded-2xl flex items-center justify-center text-stone-400 font-black text-xl group-hover:bg-orange-100 group-hover:text-orange-600 transition-colors">
-                                {emp.full_name.charAt(0)}
-                              </div>
-                              <div className="font-black text-stone-900">{emp.full_name}</div>
-                            </div>
-                          </td>
-                          <td className="p-6">
-                            <div className="font-bold text-stone-600">ID: {emp.id}</div>
-                            <div className="text-xs text-stone-400 font-bold uppercase tracking-tighter">Cédula: {emp.id_card}</div>
-                          </td>
-                          <td className="p-6">
-                            <span className="px-3 py-1 rounded-lg bg-stone-100 text-stone-600 text-[10px] font-black uppercase tracking-wider">
-                              {emp.position}
-                            </span>
-                          </td>
-                          <td className="p-6 text-right">
-                            <div className="flex justify-end gap-2">
-                              <button 
-                                onClick={() => setEditingEmployee(emp)}
-                                className="p-3 text-stone-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all"
-                              >
-                                <Edit2 size={18} />
-                              </button>
-                              <button 
-                                onClick={() => setShowDeleteConfirm(emp.id)}
-                                className="p-3 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all"
-                              >
-                                <Trash2 size={18} />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </motion.div>
-          )}
-
-          {view === 'admin-settings' && (
-            <motion.div key="admin-settings" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-2xl mx-auto space-y-8">
-              <div>
-                <h2 className="text-3xl font-black tracking-tight">Configuración del Sistema</h2>
-                <p className="text-stone-500 font-medium">Ajusta los parámetros de puntualidad y horarios</p>
-              </div>
-
-              <div className="bg-white p-10 rounded-[2.5rem] shadow-xl border border-stone-100">
-                <form onSubmit={handleUpdateSettings} className="space-y-8">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="space-y-3">
-                      <label className="text-xs font-black text-stone-400 uppercase tracking-widest flex items-center gap-2">
-                        <Clock size={14} className="text-green-600" />
-                        Hora de Entrada
-                      </label>
-                      <input 
-                        type="time" 
-                        value={settings.entry_time}
-                        onChange={e => setSettings({...settings, entry_time: e.target.value})}
-                        className="w-full p-5 rounded-2xl bg-stone-50 border-2 border-transparent focus:border-orange-500 outline-none font-black text-2xl transition-all"
-                      />
-                      <p className="text-[10px] text-stone-400 font-bold">Cualquier registro después de esta hora se marcará como "Tarde".</p>
-                    </div>
-                    <div className="space-y-3">
-                      <label className="text-xs font-black text-stone-400 uppercase tracking-widest flex items-center gap-2">
-                        <Clock size={14} className="text-orange-600" />
-                        Hora de Salida
-                      </label>
-                      <input 
-                        type="time" 
-                        value={settings.exit_time}
-                        onChange={e => setSettings({...settings, exit_time: e.target.value})}
-                        className="w-full p-5 rounded-2xl bg-stone-50 border-2 border-transparent focus:border-orange-500 outline-none font-black text-2xl transition-all"
-                      />
-                      <p className="text-[10px] text-stone-400 font-bold">Cualquier registro antes de esta hora se marcará como "Salida Temprana".</p>
-                    </div>
-                  </div>
-
-                  <div className="pt-6 border-t border-stone-100 flex flex-col gap-4">
-                    <button 
-                      type="submit" 
-                      className="w-full bg-orange-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-orange-700 transition-all shadow-xl shadow-orange-200 flex justify-center items-center gap-3"
-                    >
-                      <RefreshCw size={20} />
-                      ACTUALIZAR CONFIGURACIÓN
-                    </button>
-                    <div className="bg-blue-50 p-4 rounded-2xl flex gap-3">
-                      <Info className="text-blue-600 shrink-0" size={20} />
-                      <p className="text-xs text-blue-700 font-medium leading-relaxed">
-                        Los cambios en los horarios afectarán el cálculo de puntualidad de los nuevos registros. Los registros antiguos mantendrán el estado que tenían al momento de ser creados.
-                      </p>
-                    </div>
-                  </div>
-                </form>
-              </div>
-            </motion.div>
-          )}
-
-          {view === 'admin-violations' && (
-            <motion.div key="admin-violations" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div>
-                  <h2 className="text-3xl font-black tracking-tight text-red-600">Incidencias</h2>
-                  <p className="text-stone-500 font-medium">Personal que no ha cumplido con el horario establecido</p>
-                </div>
-                <button 
-                  onClick={() => setView('admin-logs')}
-                  className="bg-stone-100 text-stone-600 px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-stone-200 transition-colors"
-                >
-                  Ver Todo el Historial
-                </button>
-              </div>
-
-              <div className="bg-white rounded-[2rem] shadow-xl border border-red-100 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-red-50/50 border-b border-red-100">
-                        <th className="p-5 text-xs font-black uppercase tracking-widest text-red-400">Empleado</th>
-                        <th className="p-5 text-xs font-black uppercase tracking-widest text-red-400">Tipo</th>
-                        <th className="p-5 text-xs font-black uppercase tracking-widest text-red-400">Estado</th>
-                        <th className="p-5 text-xs font-black uppercase tracking-widest text-red-400">Fecha y Hora</th>
-                        <th className="p-5 text-xs font-black uppercase tracking-widest text-red-400">Evidencia</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-50">
-                      {logs.filter(l => l.status !== 'A tiempo').map(log => (
-                        <tr key={log.id} className="hover:bg-red-50/30 transition-colors bg-red-50/10">
-                          <td className="p-5">
-                            <div className="font-bold text-stone-900">{log.employee_name}</div>
-                            <div className="text-xs text-stone-400 font-medium uppercase tracking-tighter">ID: {log.employee_id} • {log.position}</div>
-                          </td>
-                          <td className="p-5">
-                            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                              log.type === 'Entrada' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
-                            }`}>
-                              {log.type}
-                            </span>
-                          </td>
-                          <td className="p-5">
-                            <span className="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider bg-red-600 text-white shadow-lg shadow-red-100">
-                              {log.status}
-                            </span>
-                          </td>
-                          <td className="p-5 text-sm font-medium text-stone-500">
-                            {log.timestamp}
-                          </td>
-                          <td className="p-5">
-                            <div className="w-12 h-12 rounded-lg overflow-hidden bg-stone-100 border border-stone-200">
-                              <img 
-                                src={log.photo} 
-                                alt="Captura" 
-                                className="w-full h-full object-cover cursor-zoom-in hover:scale-110 transition-transform"
-                                onClick={() => window.open(log.photo)}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {logs.filter(l => l.status !== 'A tiempo').length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="p-20 text-center">
-                            <div className="bg-green-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-green-600">
-                              <CheckCircle2 size={32} />
-                            </div>
-                            <p className="font-bold text-stone-400">No hay incidencias registradas</p>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </motion.div>
-          )}
-          {view === 'admin-logs' && (
-            <motion.div key="admin-logs" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-                <div>
-                  <h2 className="text-3xl font-black tracking-tight">Historial de Asistencia</h2>
-                  <p className="text-stone-500 font-medium">Registros detallados de entrada y salida</p>
-                </div>
-                <div className="flex gap-3 w-full md:w-auto">
-                  <div className="relative flex-1 md:w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
-                    <input 
-                      type="text" 
-                      placeholder="Buscar empleado o estado..." 
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white border border-stone-200 text-sm outline-none focus:ring-2 focus:ring-orange-500"
-                      value={searchTerm}
-                      onChange={e => setSearchTerm(e.target.value)}
-                    />
-                  </div>
-                  <button 
-                    onClick={handleExport}
-                    className="bg-stone-900 text-white px-5 py-2.5 rounded-xl font-bold text-sm flex items-center gap-2 hover:bg-black transition-all shadow-lg shadow-stone-200"
-                  >
-                    <Download size={18} />
-                    Exportar
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-white rounded-[2.5rem] shadow-xl border border-stone-100 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-stone-50/50 border-b border-stone-100">
-                        <th className="p-6 text-xs font-black uppercase tracking-widest text-stone-400">Empleado</th>
-                        <th className="p-6 text-xs font-black uppercase tracking-widest text-stone-400">Tipo</th>
-                        <th className="p-6 text-xs font-black uppercase tracking-widest text-stone-400">Estado</th>
-                        <th className="p-6 text-xs font-black uppercase tracking-widest text-stone-400">Fecha y Hora</th>
-                        <th className="p-6 text-xs font-black uppercase tracking-widest text-stone-400">Evidencia</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-50">
-                      {filteredLogs.map(log => (
-                        <tr key={log.id} className={`hover:bg-stone-50/30 transition-colors ${log.status !== 'A tiempo' ? 'bg-red-50/20' : ''}`}>
-                          <td className="p-6">
-                            <div className="font-black text-stone-900">{log.employee_name}</div>
-                            <div className="text-[10px] text-stone-400 font-bold uppercase tracking-tighter">ID: {log.employee_id} • {log.position}</div>
-                          </td>
-                          <td className="p-6">
-                            <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
-                              log.type === 'Entrada' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'
-                            }`}>
-                              {log.type}
-                            </span>
-                          </td>
-                          <td className="p-6">
-                            <span className={`px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${
-                              log.status === 'A tiempo' ? 'bg-green-50 text-green-600' : 'bg-red-600 text-white shadow-lg shadow-red-100'
-                            }`}>
-                              {log.status}
-                            </span>
-                          </td>
-                          <td className="p-6 text-sm font-bold text-stone-500">
-                            {log.timestamp}
-                          </td>
-                          <td className="p-6">
-                            <div className="w-12 h-12 rounded-xl overflow-hidden bg-stone-100 border border-stone-200 shadow-sm">
-                              <img 
-                                src={log.photo} 
-                                alt="Captura" 
-                                className="w-full h-full object-cover cursor-zoom-in hover:scale-110 transition-transform"
-                                onClick={() => window.open(log.photo)}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                      {filteredLogs.length === 0 && (
-                        <tr>
-                          <td colSpan={5} className="p-20 text-center text-stone-400 font-bold">No se encontraron registros</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </motion.div>
-          )}
         </AnimatePresence>
       </main>
 
-      {/* MODALES */}
-      <AnimatePresence>
-        {isAddingEmployee && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <motion.div 
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => setIsAddingEmployee(false)}
-            className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
-          />
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0, y: 20 }}
-            animate={{ scale: 1, opacity: 1, y: 0 }}
-            exit={{ scale: 0.9, opacity: 0, y: 20 }}
-            className="relative bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl"
-          >
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-black">Nuevo Empleado</h3>
-              <button onClick={() => setIsAddingEmployee(false)} className="text-stone-400 hover:text-stone-600">
-                <X size={24} />
-              </button>
-            </div>
-            <form onSubmit={handleAddEmployee} className="space-y-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">ID de Empleado</label>
-                <input 
-                  type="text" placeholder="Ej: EMP001" required
-                  className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
-                  value={newEmployee.id}
-                  onChange={e => setNewEmployee({...newEmployee, id: e.target.value})}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Nombre Completo</label>
-                <input 
-                  type="text" placeholder="Ej: Juan Pérez" required
-                  className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
-                  value={newEmployee.full_name}
-                  onChange={e => setNewEmployee({...newEmployee, full_name: e.target.value})}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Cédula / ID Card</label>
-                <input 
-                  type="text" placeholder="Ej: 12345678-9" required
-                  className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
-                  value={newEmployee.id_card}
-                  onChange={e => setNewEmployee({...newEmployee, id_card: e.target.value})}
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest ml-1">Cargo / Posición</label>
-                <input 
-                  type="text" placeholder="Ej: Operador" required
-                  className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
-                  value={newEmployee.position}
-                  onChange={e => setNewEmployee({...newEmployee, position: e.target.value})}
-                />
-              </div>
-              <div className="flex gap-3 pt-4">
-                <button type="button" onClick={() => setIsAddingEmployee(false)} className="flex-1 p-4 rounded-xl font-bold text-stone-400 hover:bg-stone-50 transition-colors">Cancelar</button>
-                <button type="submit" className="flex-1 bg-orange-600 text-white p-4 rounded-xl font-bold hover:bg-orange-700 transition-colors shadow-lg shadow-orange-200">Guardar</button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
-        {editingEmployee && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setEditingEmployee(null)}
-              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl"
-            >
-              <h3 className="text-2xl font-black mb-6">Editar Empleado</h3>
-              <form onSubmit={handleUpdateEmployee} className="space-y-4">
-                <input 
-                  type="text" value={editingEmployee.full_name} 
-                  onChange={e => setEditingEmployee({...editingEmployee, full_name: e.target.value})}
-                  className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
-                  placeholder="Nombre Completo"
-                />
-                <input 
-                  type="text" value={editingEmployee.id_card} 
-                  onChange={e => setEditingEmployee({...editingEmployee, id_card: e.target.value})}
-                  className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
-                  placeholder="Cédula"
-                />
-                <input 
-                  type="text" value={editingEmployee.position} 
-                  onChange={e => setEditingEmployee({...editingEmployee, position: e.target.value})}
-                  className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold"
-                  placeholder="Cargo"
-                />
-                <div className="flex gap-3 pt-4">
-                  <button type="button" onClick={() => setEditingEmployee(null)} className="flex-1 p-4 rounded-xl font-bold text-stone-400 hover:bg-stone-50 transition-colors">Cancelar</button>
-                  <button type="submit" className="flex-1 bg-orange-600 text-white p-4 rounded-xl font-bold hover:bg-orange-700 transition-colors shadow-lg shadow-orange-200">Guardar</button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-
-        {showDeleteConfirm && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setShowDeleteConfirm(null)}
-              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-white w-full max-w-sm p-8 rounded-[2.5rem] shadow-2xl text-center"
-            >
-              <div className="bg-red-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 text-red-600">
-                <Trash2 size={40} />
-              </div>
-              <h3 className="text-2xl font-black mb-2">¿Estás seguro?</h3>
-              <p className="text-stone-500 font-medium mb-8">Esta acción eliminará permanentemente al empleado.</p>
-              <div className="flex gap-3">
-                <button onClick={() => setShowDeleteConfirm(null)} className="flex-1 p-4 rounded-xl font-bold text-stone-400 hover:bg-stone-50 transition-colors">Cancelar</button>
-                <button onClick={() => deleteEmployee(showDeleteConfirm)} className="flex-1 bg-red-600 text-white p-4 rounded-xl font-bold hover:bg-red-700 transition-colors shadow-lg shadow-red-200">Eliminar</button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-
-        {isEditingSettings && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            <motion.div 
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              onClick={() => setIsEditingSettings(false)}
-              className="absolute inset-0 bg-stone-900/60 backdrop-blur-sm"
-            />
-            <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
-              animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative bg-white w-full max-w-md p-8 rounded-[2.5rem] shadow-2xl"
-            >
-              <h3 className="text-2xl font-black mb-6">Configurar Horarios</h3>
-              <form onSubmit={handleUpdateSettings} className="space-y-6">
-                <div>
-                  <label className="block text-xs font-black text-stone-400 uppercase tracking-widest mb-2">Hora de Entrada (HH:MM)</label>
-                  <input 
-                    type="time" 
-                    value={settings.entry_time} 
-                    onChange={e => setSettings({...settings, entry_time: e.target.value})}
-                    className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold text-xl"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-black text-stone-400 uppercase tracking-widest mb-2">Hora de Salida (HH:MM)</label>
-                  <input 
-                    type="time" 
-                    value={settings.exit_time} 
-                    onChange={e => setSettings({...settings, exit_time: e.target.value})}
-                    className="w-full p-4 rounded-xl bg-stone-50 border outline-none focus:ring-2 focus:ring-orange-500 font-bold text-xl"
-                  />
-                </div>
-                <div className="flex gap-3 pt-4">
-                  <button type="button" onClick={() => setIsEditingSettings(false)} className="flex-1 p-4 rounded-xl font-bold text-stone-400 hover:bg-stone-50 transition-colors">Cancelar</button>
-                  <button type="submit" className="flex-1 bg-orange-600 text-white p-4 rounded-xl font-bold hover:bg-orange-700 transition-colors shadow-lg shadow-orange-200">Guardar</button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Mensajes Flotantes */}
+      {/* MODALES Y MENSAJES PARA VISTA DE USUARIO */}
       <AnimatePresence>
         {message && (
           <motion.div 
